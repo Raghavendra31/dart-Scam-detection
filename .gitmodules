@@ -1,0 +1,3 @@
+[submodule "cyber_scam_prevention"]
+	path = cyber_scam_prevention
+	url = https://github.com/Raghavendra31/cyber_scam_prevention.git

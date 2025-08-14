@@ -18,48 +18,63 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   static const platform = MethodChannel('notificationListener');
 
+  // Change to your active ngrok endpoint
+  final String apiUrl = "https://ac4e71263aac.ngrok-free.app/check";
+
   @override
   void initState() {
     super.initState();
     platform.setMethodCallHandler(_handleNotification);
   }
 
-  /// Handles incoming method calls from Android
   Future<void> _handleNotification(MethodCall call) async {
     if (call.method == "onNotification") {
       final Map<String, dynamic> notification =
           Map<String, dynamic>.from(call.arguments);
-      await _processNotification(notification);
+      _processNotification(notification);
     }
   }
 
-  /// Processes the notification and sends it to the model
-  Future<void> _processNotification(Map<String, dynamic> notification) async {
+  void _processNotification(Map<String, dynamic> notification) {
     final String package = notification['package'] ?? '';
     final String title = notification['title'] ?? '';
     final String text = notification['text'] ?? '';
     final String message = "$title\n$text";
 
     if (_isSocialApp(package)) {
-      final String result = await sendMessageToModel(message);
-      _showScamNotification(message, result);
+      // Show instant "Checking..." banner
+      showSimpleNotification(
+        Text("Checking message..."),
+        subtitle: Text(message),
+        background: Colors.blue,
+        duration: const Duration(seconds: 3),
+      );
+
+      // Run scam detection
+      sendMessageToModel(message).then((result) {
+        showSimpleNotification(
+          Text("Detected: $result"),
+          subtitle: Text(message),
+          background:
+              result.toLowerCase() == "scam" ? Colors.red : Colors.green,
+          duration: const Duration(seconds: 5),
+        );
+      });
     }
 
     debugPrint("Notification from: $package\n$message");
   }
 
-  /// Checks if the notification is from a social app
   bool _isSocialApp(String package) {
     return package.contains("whatsapp") ||
         package.contains("telegram") ||
         package.contains("instagram");
   }
 
-  /// Sends the message to your Python scam detection model
   Future<String> sendMessageToModel(String message) async {
     try {
       final response = await http.post(
-        Uri.parse('http://192.168.1.39:5000/check'), // 🔁 Your Flask API endpoint
+        Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'message': message}),
       );
@@ -69,22 +84,13 @@ class _MyAppState extends State<MyApp> {
         final prediction = data['prediction'] ?? 0;
         return prediction == 1 ? "Scam" : "Safe";
       } else {
+        debugPrint("❌ Server error: ${response.statusCode}");
         return "Server Error";
       }
     } catch (e) {
-      debugPrint("❌ Error contacting model: $e");
+      debugPrint("❌ Network error: $e");
       return "Network Error";
     }
-  }
-
-  /// Shows the scam detection result as a notification banner
-  void _showScamNotification(String message, String result) {
-    showSimpleNotification(
-      Text("Detected: $result"),
-      subtitle: Text(message),
-      background: result.toLowerCase() == "scam" ? Colors.red : Colors.green,
-      duration: const Duration(seconds: 4),
-    );
   }
 
   @override

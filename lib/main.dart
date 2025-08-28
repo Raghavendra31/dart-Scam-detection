@@ -19,7 +19,7 @@ class _MyAppState extends State<MyApp> {
   static const platform = MethodChannel('notificationListener');
 
   // Change to your active ngrok endpoint
-  final String apiUrl = "https://ac4e71263aac.ngrok-free.app/check";
+  final String apiUrl = "https://a02a381b60dd.ngrok-free.app/check";
 
   @override
   void initState() {

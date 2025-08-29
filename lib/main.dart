@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:overlay_support/overlay_support.dart';
+import 'package:encrypt/encrypt.dart' as encrypt;
 
 void main() {
   runApp(const OverlaySupport.global(child: MyApp()));
@@ -18,13 +19,35 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   static const platform = MethodChannel('notificationListener');
 
-  // Change to your active ngrok endpoint
-  final String apiUrl = "https://a02a381b60dd.ngrok-free.app/check";
+  // Change to your ngrok endpoint or PC IP
+  final String apiUrl = "https://7e51381214c1.ngrok-free.app/check";
+
+  // Encryption key (Fernet Base64)
+  final String secretKey = "LhUNV5gb0I4jxj8dyyh2EYg-p7v8349H9dsR_GPI664=";
+
+  late encrypt.Encrypter encrypter;
+  late encrypt.Key key;
 
   @override
   void initState() {
     super.initState();
+
+    key = encrypt.Key.fromBase64(secretKey);
+    encrypter = encrypt.Encrypter(encrypt.Fernet(key));
+
+    // Set up notification listener
     platform.setMethodCallHandler(_handleNotification);
+
+    // Prompt user to enable notification access
+    _requestNotificationAccess();
+  }
+
+  Future<void> _requestNotificationAccess() async {
+    try {
+      await platform.invokeMethod('requestNotificationAccess');
+    } catch (e) {
+      debugPrint("Could not open notification access settings: $e");
+    }
   }
 
   Future<void> _handleNotification(MethodCall call) async {
@@ -42,22 +65,26 @@ class _MyAppState extends State<MyApp> {
     final String message = "$title\n$text";
 
     if (_isSocialApp(package)) {
-      // Show instant "Checking..." banner
+      // Show initial notification
       showSimpleNotification(
-        Text("Checking message..."),
+        const Text("Checking message..."),
         subtitle: Text(message),
         background: Colors.blue,
         duration: const Duration(seconds: 3),
       );
 
-      // Run scam detection
-      sendMessageToModel(message).then((result) {
+      // Send to backend for scam detection
+      sendMessageToModel(message).then((probability) {
+        // Convert probability to label
+        final String label = probability >= 0.6 ? "🚨 Scam" : "✅ Safe";
+        final Color color = probability >= 0.6 ? Colors.red : Colors.green;
+
+        // Show notification with label and message
         showSimpleNotification(
-          Text("Detected: $result"),
+          Text(label),
           subtitle: Text(message),
-          background:
-              result.toLowerCase() == "scam" ? Colors.red : Colors.green,
-          duration: const Duration(seconds: 5),
+          background: color,
+          duration: const Duration(seconds: 15),
         );
       });
     }
@@ -71,25 +98,32 @@ class _MyAppState extends State<MyApp> {
         package.contains("instagram");
   }
 
-  Future<String> sendMessageToModel(String message) async {
+  Future<double> sendMessageToModel(String message) async {
     try {
+      // Encrypt message
+      final encrypted = encrypter.encrypt(message).base64;
+      debugPrint("📤 Encrypted outgoing message: $encrypted");
+
       final response = await http.post(
         Uri.parse(apiUrl),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'message': message}),
+        body: jsonEncode({'data': encrypted}),
       );
+
+      debugPrint("📥 Raw server response: ${response.body}");
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final prediction = data['prediction'] ?? 0;
-        return prediction == 1 ? "Scam" : "Safe";
+        // Use the correct key from your backend
+        final probability = (data['scam_probability'] ?? 0.0).toDouble();
+        return probability;
       } else {
         debugPrint("❌ Server error: ${response.statusCode}");
-        return "Server Error";
+        return 0.0;
       }
     } catch (e) {
       debugPrint("❌ Network error: $e");
-      return "Network Error";
+      return 0.0;
     }
   }
 
@@ -100,7 +134,7 @@ class _MyAppState extends State<MyApp> {
       home: Scaffold(
         body: Center(
           child: Text(
-            "🚨 Scam Detector is running in background",
+            "🚨 scam detector is running in background",
             style: TextStyle(fontSize: 16),
             textAlign: TextAlign.center,
           ),
@@ -109,6 +143,3 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
-
-
-// ngrok http 5000 

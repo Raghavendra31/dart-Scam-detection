@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -28,8 +27,30 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("my-key.jks")        // 🔑 path to your keystore
+            storePassword = "asdfghjkl;'"         // 🔑 your keystore password
+            keyAlias = "my-alias"                 // 🔑 from keytool
+            keyPassword = "asdfghjkl;'"           // 🔑 usually same as storePassword
+        }
+    }
+
     buildTypes {
         release {
+            // ✅ Enable both minify + shrinkResources to avoid your error
+            isMinifyEnabled = true
+            isShrinkResources = true
+
+            signingConfig = signingConfigs.getByName("release")
+
+            // ✅ Use proguard rules to keep Flutter classes
+            proguardFiles(
+                getDefaultProguardFile("proguard-android.txt"),
+                "proguard-rules.pro"
+            )
+        }
+        debug {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -40,6 +61,5 @@ flutter {
 }
 
 dependencies {
-    // ✅ For Java 8+ features like desugaring (e.g. java.time)
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.0.4")
 }

@@ -32,9 +32,10 @@ dependencies:
     sdk: flutter
   http: ^0.13.6
   overlay_support: ^2.1.0
-
+  encrypt: ^5.0.1
   flutter_local_notifications: ^17.0.0
   flutter_foreground_task: ^6.1.0
+  
   #notification_listener_service: ^0.0.4+1
 
 
